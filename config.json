@@ -1,0 +1,7 @@
+{
+    "ring_buffer_capacity": 1048576,
+    "batch_size": 1000,
+    "flush_interval_ms": 100,
+    "output_endpoint": "s3://apollonian-bucket/telemetry/",
+    "enable_metrics": true
+}
