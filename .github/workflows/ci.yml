@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    name: ${{ matrix.compiler }} / ${{ matrix.build_type }}
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+        build_type: [Debug, Release]
+        include:
+          - compiler: gcc
+            cc: gcc-13
+            cxx: g++-13
+          - compiler: clang
+            cc: clang-18
+            cxx: clang++-18
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build nlohmann-json3-dev libgtest-dev
+
+      - name: Configure
+        env:
+          CC: ${{ matrix.cc }}
+          CXX: ${{ matrix.cxx }}
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
+          -DBUILD_TESTS=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test
+        working-directory: build
+        run: ctest --output-on-failure --parallel
+
+  sanitizers:
+    name: ASan + UBSan (clang, Debug)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build nlohmann-json3-dev libgtest-dev
+
+      - name: Configure
+        env:
+          CC: clang-18
+          CXX: clang++-18
+        run: >
+          cmake -S . -B build -G Ninja
+          -DCMAKE_BUILD_TYPE=Debug
+          -DBUILD_TESTS=ON
+          -DENABLE_SANITIZERS=ON
+
+      - name: Build
+        run: cmake --build build --parallel
+
+      - name: Test under sanitizers
+        working-directory: build
+        run: ctest --output-on-failure --parallel
+
+  format-check:
+    name: clang-format
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check formatting
+        run: |
+          find include src tests -name '*.hpp' -o -name '*.cpp' | \
+            xargs clang-format-18 --dry-run --Werror
