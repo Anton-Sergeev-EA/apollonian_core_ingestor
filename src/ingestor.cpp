@@ -7,7 +7,7 @@
 #include <utility>
 
 #if defined(__x86_64__) || defined(_M_X64)
-#include <immintrin.h> // For _mm_pause()
+#include <immintrin.h>  // For _mm_pause()
 #endif
 
 namespace apollonian::core {
@@ -25,10 +25,9 @@ inline void cpu_relax() noexcept {
 #endif
 }
 
-}
+}  // namespace
 
-Ingestor::Ingestor(const Config& config)
-    : m_config(config) {
+Ingestor::Ingestor(const Config& config) : m_config(config) {
     if (auto err = m_config.validate()) {
         std::cerr << "[Ingestor] Warning: Invalid config parameters: " << *err << std::endl;
     }
@@ -40,22 +39,20 @@ Ingestor::~Ingestor() {
 
 void Ingestor::start() {
     if (m_running.exchange(true, std::memory_order_acq_rel)) {
-        return; // Already running.
+        return;  // Already running.
     }
 
     // Launch single consumer background jthread (C++20 auto-join thread).
     m_consumer_thread = std::jthread([this]() { consumer_loop(); });
 
-    std::cout << "[Ingestor] Engine started gracefully."
-              << " Buffer Capacity: " << m_config.ring_buffer_capacity
-              << " | Batch Size: " << m_config.batch_size
-              << " | Flush Interval: " << m_config.flush_interval.count() << "ms"
-              << std::endl;
+    std::cout << "[Ingestor] Engine started gracefully." << " Buffer Capacity: " << m_config.ring_buffer_capacity
+              << " | Batch Size: " << m_config.batch_size << " | Flush Interval: " << m_config.flush_interval.count()
+              << "ms" << std::endl;
 }
 
 void Ingestor::stop() noexcept {
     if (!m_running.exchange(false, std::memory_order_acq_rel)) {
-        return; // Already stopped.
+        return;  // Already stopped.
     }
 
     if (m_consumer_thread.joinable()) {
@@ -63,11 +60,8 @@ void Ingestor::stop() noexcept {
     }
 
     const auto stats = m_metrics.snapshot();
-    std::cout << "[Ingestor] Stopped."
-              << " Ingested: " << stats.ingested
-              << " | Dropped: " << stats.dropped
-              << " | Batches: " << stats.batches_sent
-              << std::endl;
+    std::cout << "[Ingestor] Stopped." << " Ingested: " << stats.ingested << " | Dropped: " << stats.dropped
+              << " | Batches: " << stats.batches_sent << std::endl;
 }
 
 void Ingestor::set_batch_callback(BatchCallback callback) {
@@ -92,7 +86,7 @@ bool Ingestor::ingest_sample(TelemetrySample&& sample) noexcept {
     return false;
 }
 
-void Ingestor::process_batch(std::vector<TelemetrySample>& batch_scratchpad, 
+void Ingestor::process_batch(std::vector<TelemetrySample>& batch_scratchpad,
                              std::vector<uint8_t>& serialization_buffer) {
     if (batch_scratchpad.empty()) {
         return;
@@ -127,7 +121,7 @@ void Ingestor::consumer_loop() {
 
     while (m_running.load(std::memory_order_relaxed) || !m_ring_buffer.empty()) {
         TelemetrySample sample;
-        
+
         // Drain elements from ring buffer into batch scratchpad.
         while (batch_scratchpad.size() < m_config.batch_size && m_ring_buffer.pop(sample)) {
             batch_scratchpad.push_back(sample);
@@ -147,9 +141,9 @@ void Ingestor::consumer_loop() {
         // Low-latency backoff mechanism when no items were processed.
         if (batch_scratchpad.empty()) {
             if (++idle_spin_count < 1000) {
-                cpu_relax(); // Low-latency CPU pause instruction.
+                cpu_relax();  // Low-latency CPU pause instruction.
             } else {
-                std::this_thread::sleep_for(std::chrono::microseconds(100)); // Yield after prolonged idle
+                std::this_thread::sleep_for(std::chrono::microseconds(100));  // Yield after prolonged idle
             }
         }
     }
@@ -160,4 +154,4 @@ void Ingestor::consumer_loop() {
     }
 }
 
-}
+}  // namespace apollonian::core

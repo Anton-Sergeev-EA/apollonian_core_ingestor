@@ -1,10 +1,5 @@
 #pragma once
 
-#include "config.hpp"
-#include "metrics.hpp"
-#include "ring_buffer.hpp"
-#include "serializer.hpp"
-
 #include <atomic>
 #include <chrono>
 #include <cstdint>
@@ -14,15 +9,20 @@
 #include <thread>
 #include <vector>
 
+#include "config.hpp"
+#include "metrics.hpp"
+#include "ring_buffer.hpp"
+#include "serializer.hpp"
+
 namespace apollonian::core {
 
 /**
  * @brief High-Performance Telemetry Ingestion Orchestrator.
- * 
+ *
  * Coordinates ingestion loops, batch serialization, thread lifecycles, and metric tracking.
  */
 class Ingestor {
-public:
+  public:
     /**
      * @brief Zero-copy callback view receiving serialized telemetry bytes.
      */
@@ -75,18 +75,14 @@ public:
     /**
      * @brief Returns an atomic point-in-time snapshot of processing metrics.
      */
-    [[nodiscard]] MetricsSnapshot get_metrics() const noexcept {
-        return m_metrics.snapshot();
-    }
+    [[nodiscard]] MetricsSnapshot get_metrics() const noexcept { return m_metrics.snapshot(); }
 
     /**
      * @brief Checks whether the ingestor pipeline worker is currently running.
      */
-    [[nodiscard]] bool is_running() const noexcept {
-        return m_running.load(std::memory_order_relaxed);
-    }
+    [[nodiscard]] bool is_running() const noexcept { return m_running.load(std::memory_order_relaxed); }
 
-private:
+  private:
     void consumer_loop();
     void process_batch(std::vector<TelemetrySample>& batch_scratchpad, std::vector<uint8_t>& serialization_buffer);
 
@@ -99,4 +95,4 @@ private:
     std::jthread m_consumer_thread;
 };
 
-} // namespace apollonian::core
+}  // namespace apollonian::core

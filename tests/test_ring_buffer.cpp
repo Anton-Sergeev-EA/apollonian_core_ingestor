@@ -1,10 +1,11 @@
 #include <gtest/gtest.h>
-#include "ingestor/ring_buffer.hpp"
 
 #include <atomic>
 #include <memory>
 #include <thread>
 #include <vector>
+
+#include "ingestor/ring_buffer.hpp"
 
 using namespace apollonian::core;
 
@@ -14,15 +15,15 @@ namespace {
 struct MoveOnlyType {
     int id;
     explicit MoveOnlyType(int value) : id(value) {}
-    
+
     MoveOnlyType(const MoveOnlyType&) = delete;
     MoveOnlyType& operator=(const MoveOnlyType&) = delete;
-    
+
     MoveOnlyType(MoveOnlyType&&) noexcept = default;
     MoveOnlyType& operator=(MoveOnlyType&&) noexcept = default;
 };
 
-} // namespace.
+}  // namespace.
 
 TEST(RingBufferTest, BasicPushPop) {
     RingBuffer<int, 4> rb;
@@ -33,21 +34,21 @@ TEST(RingBufferTest, BasicPushPop) {
     EXPECT_TRUE(rb.push(1));
     EXPECT_TRUE(rb.push(2));
     EXPECT_TRUE(rb.push(3));
-    
+
     // Capacity logic check (3 items inserted out of 4 capacity slots available).
     EXPECT_FALSE(rb.empty());
 
     int val = 0;
-    EXPECT_TRUE(rb.pop(val)); 
+    EXPECT_TRUE(rb.pop(val));
     EXPECT_EQ(val, 1);
-    
-    EXPECT_TRUE(rb.pop(val)); 
+
+    EXPECT_TRUE(rb.pop(val));
     EXPECT_EQ(val, 2);
-    
-    EXPECT_TRUE(rb.pop(val)); 
+
+    EXPECT_TRUE(rb.pop(val));
     EXPECT_EQ(val, 3);
-    
-    EXPECT_FALSE(rb.pop(val)); // Buffer is now empty.
+
+    EXPECT_FALSE(rb.pop(val));  // Buffer is now empty.
     EXPECT_TRUE(rb.empty());
 }
 
@@ -92,11 +93,12 @@ TEST(RingBufferTest, ConcurrentSPSCStressTest) {
 
     // Producer Thread.
     std::thread producer([&]() {
-        while (!start_flag.load(std::memory_order_relaxed)) {}
+        while (!start_flag.load(std::memory_order_relaxed)) {
+        }
 
         for (std::size_t i = 0; i < kIterations; ++i) {
             while (!rb.push(i)) {
-                std::this_thread::yield(); // Backoff on full buffer.
+                std::this_thread::yield();  // Backoff on full buffer.
             }
         }
     });
@@ -106,12 +108,13 @@ TEST(RingBufferTest, ConcurrentSPSCStressTest) {
     consumed_items.reserve(kIterations);
 
     std::thread consumer([&]() {
-        while (!start_flag.load(std::memory_order_relaxed)) {}
+        while (!start_flag.load(std::memory_order_relaxed)) {
+        }
 
         std::size_t value = 0;
         for (std::size_t i = 0; i < kIterations; ++i) {
             while (!rb.pop(value)) {
-                std::this_thread::yield(); // Backoff on empty buffer.
+                std::this_thread::yield();  // Backoff on empty buffer.
             }
             consumed_items.push_back(value);
         }

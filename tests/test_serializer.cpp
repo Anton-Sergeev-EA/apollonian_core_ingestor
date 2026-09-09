@@ -1,27 +1,26 @@
 #include <gtest/gtest.h>
-#include "ingestor/serializer.hpp"
 
 #include <array>
 #include <cstring>
 #include <span>
 #include <vector>
 
+#include "ingestor/serializer.hpp"
+
 using namespace apollonian::core;
 
 TEST(SerializerTest, ZeroAllocationSerializeAndDeserialize) {
     std::vector<TelemetrySample> samples;
     for (uint32_t i = 0; i < 5; ++i) {
-        samples.push_back(TelemetrySample{
-            .timestamp_ms = 1000U + i,
-            .value = static_cast<double>(i) * 2.5,
-            .tag_id = i + 1,
-            .quality = static_cast<uint8_t>(i % 2)
-        });
+        samples.push_back(TelemetrySample{.timestamp_ms = 1000U + i,
+                                          .value = static_cast<double>(i) * 2.5,
+                                          .tag_id = i + 1,
+                                          .quality = static_cast<uint8_t>(i % 2)});
     }
 
     // Allocate stack buffer for zero-allocation API.
     std::array<uint8_t, 1024> stack_buffer{};
-    
+
     const std::size_t written_bytes = Serializer::serialize(samples, stack_buffer);
     const std::size_t expected_size = Serializer::required_buffer_size(samples.size());
 
@@ -29,7 +28,7 @@ TEST(SerializerTest, ZeroAllocationSerializeAndDeserialize) {
 
     // Perform Zero-Copy deserialization with automatic CRC validation.
     auto view_opt = Serializer::deserialize_zero_copy(std::span<const uint8_t>(stack_buffer.data(), written_bytes));
-    
+
     ASSERT_TRUE(view_opt.has_value());
     auto deserialized_samples = *view_opt;
 
@@ -45,8 +44,7 @@ TEST(SerializerTest, ZeroAllocationSerializeAndDeserialize) {
 
 TEST(SerializerTest, CRC32CorruptionDetection) {
     std::vector<TelemetrySample> samples{
-        TelemetrySample{.timestamp_ms = 123456, .value = 42.0, .tag_id = 1, .quality = 0}
-    };
+        TelemetrySample{.timestamp_ms = 123456, .value = 42.0, .tag_id = 1, .quality = 0}};
 
     auto buffer = Serializer::serialize(samples);
 
@@ -63,9 +61,7 @@ TEST(SerializerTest, CRC32CorruptionDetection) {
 }
 
 TEST(SerializerTest, BufferTooSmallHandling) {
-    std::vector<TelemetrySample> samples{
-        TelemetrySample{.timestamp_ms = 100, .value = 1.0, .tag_id = 1, .quality = 0}
-    };
+    std::vector<TelemetrySample> samples{TelemetrySample{.timestamp_ms = 100, .value = 1.0, .tag_id = 1, .quality = 0}};
 
     // Buffer smaller than required size.
     std::array<uint8_t, sizeof(BatchHeader)> small_buffer{};

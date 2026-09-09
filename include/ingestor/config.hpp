@@ -14,11 +14,11 @@ namespace apollonian::core {
  */
 struct Config {
     // Default configuration constants.
-    static constexpr std::size_t kDefaultCapacity = 1024 * 1024; // 1M elements.
+    static constexpr std::size_t kDefaultCapacity = 1024 * 1024;  // 1M elements.
     static constexpr std::size_t kDefaultBatchSize = 1000;
     static constexpr std::chrono::milliseconds kDefaultFlushInterval{100};
 
-    std::size_t ring_buffer_capacity{kDefaultCapacity}; // Must be a power of two
+    std::size_t ring_buffer_capacity{kDefaultCapacity};  // Must be a power of two
     std::size_t batch_size{kDefaultBatchSize};           // Maximum items per telemetry batch
     std::chrono::milliseconds flush_interval{kDefaultFlushInterval};
     std::string output_endpoint{"s3://apollonian-bucket/telemetry/"};
@@ -53,16 +53,16 @@ struct Config {
             return "output_endpoint URI cannot be empty";
         }
 
-        return std::nullopt; // Configuration is completely valid
+        return std::nullopt;  // Configuration is completely valid
     }
 
     /**
      * @brief Parses and loads configuration parameters from a JSON file path.
-     * 
+     *
      * @param path Path to the JSON configuration file.
      * @return Config object on success, or std::nullopt if reading/parsing/validation failed.
      */
     [[nodiscard]] static std::optional<Config> from_file(const std::filesystem::path& path);
 };
 
-} // namespace apollonian::core
+}  // namespace apollonian::core

@@ -23,7 +23,7 @@ std::optional<Config> Config::from_file(const std::filesystem::path& path) {
         Config cfg;
         cfg.ring_buffer_capacity = j.value("ring_buffer_capacity", cfg.ring_buffer_capacity);
         cfg.batch_size = j.value("batch_size", cfg.batch_size);
-        
+
         if (j.contains("flush_interval_ms") && j["flush_interval_ms"].is_number()) {
             cfg.flush_interval = std::chrono::milliseconds(j["flush_interval_ms"].get<uint64_t>());
         }
@@ -47,4 +47,4 @@ std::optional<Config> Config::from_file(const std::filesystem::path& path) {
     }
 }
 
-}
+}  // namespace apollonian::core
