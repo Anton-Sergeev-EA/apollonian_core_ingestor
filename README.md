@@ -1,79 +1,119 @@
-# Apollonian Core Ingestor.
+# Apollonian Core Ingestor
 
+[![CI](https://github.com/Anton-Sergeev-EA/apollonian_core_ingestor/actions/workflows/ci.yml/badge.svg)](https://github.com/Anton-Sergeev-EA/apollonian_core_ingestor/actions/workflows/ci.yml)
 [![C++20](https://img.shields.io/badge/C%2B%2B-20-blue.svg)](https://en.cppreference.com/w/cpp/20)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-High-performance, ultra-low latency telemetry ingestion core engine.
+High-performance, low-latency telemetry ingestion core engine.
 
-An optimized, lock-free SPSC architecture built for Industrial IoT and HFT-grade streaming pipelines. Capable of processing **>10M samples/sec** per thread with sub-microsecond latency guarantees.
+A lock-free SPSC (single-producer, single-consumer) pipeline for streaming
+telemetry from industrial sensors / PLCs into a downstream sink (S3, Kafka, a
+database, ...), built around a cache-aligned ring buffer and a zero-allocation
+binary serializer.
 
+## Architecture
 
-## 🏛 Architecture
-
+```
 [Industrial Sensors / PLC]
-           │
-           ▼
-┌───────────────────────┐
-│  RingBuffer (SPSC)    │  <-- Lock-Free, Cache-Aligned, Zero-Allocation
-└──────────┬────────────┘
-           │
-           ▼
-┌───────────────────────┐
-│   Batch Serializer    │  <-- SSE4.2 Hardware Accelerated CRC32
-└──────────┬────────────┘
-           │
-           ▼
-┌───────────────────────┐
-│ Zero-Copy Callback    │  <-- S3 / Kafka / Database Transport
-└───────────────────────┘
+           |
+           v
++------------------------+
+|   RingBuffer (SPSC)     |  <-- lock-free, cache-aligned, zero-allocation
++-----------+--------------+
+           |
+           v
++------------------------+
+|   Batch Serializer      |  <-- SSE4.2-accelerated CRC32 (with a portable
++-----------+--------------+      software fallback when unavailable)
+           |
+           v
++------------------------+
+|   Zero-copy callback    |  <-- S3 / Kafka / database transport
++------------------------+
+```
 
-# Features & Optimizations.
-- Lock-Free SPSC Ring Buffer: Prevents False Sharing via hardware cache-line alignment (alignas(64/128)). Uses local index caching to drastically reduce cross-core cache coherence bus traffic.
-- Zero-Allocation Pipeline: Utilizes Placement New and std::span non-owning memory views to achieve zero dynamic memory allocations (malloc/free) in hot paths.
-- Hardware Acceleration: Computes SSE4.2 CPU instruction-level CRC32 checksums for ultra-fast telemetry data integrity validation.
-- C++20 Native Concurrency: Managed background worker threads using std::jthread and instant signal delivery with POSIX condition variables.
-- Thread-Safe Metrics Engine: Atomic point-in-time snapshot collection without blocking execution threads.
+## Features
 
-# Quick Start.
-Prerequisites
-- C++20 compliant compiler (GCC 10+, Clang 11+, or MSVC 2019+)
+- **Lock-free SPSC ring buffer** — cache-line aligned to avoid false sharing,
+  with local index caching to reduce cross-core cache-coherence traffic.
+- **Zero-allocation hot path** — placement-new construction and
+  `std::span`-based non-owning views mean no `malloc`/`free` once the pipeline
+  is running.
+- **Hardware-accelerated CRC32** — uses the SSE4.2 `crc32` instruction when the
+  running CPU actually supports it (checked once at runtime via `cpuid` /
+  `__builtin_cpu_supports`), and transparently falls back to a portable
+  bitwise implementation everywhere else. No `-march=native` required, and no
+  risk of `SIGILL` on hardware without SSE4.2.
+- **C++20 native concurrency** — a `std::jthread` background worker with
+  cooperative, signal-driven shutdown.
+- **Lock-free metrics** — atomic, cache-line-isolated counters with
+  point-in-time snapshotting.
+
+## Quick Start
+
+### Prerequisites
+
+- A C++20 compiler (GCC 12+, Clang 15+, or MSVC 2022+ — `std::jthread`
+  requires a reasonably recent standard library)
 - CMake 3.20+
-Note: Third-party dependencies (nlohmann_json and GoogleTest) are fetched automatically via CMake FetchContent if not installed system-wide.
+- [`nlohmann_json`](https://github.com/nlohmann/json) and
+  [GoogleTest](https://github.com/google/googletest) — used if already
+  installed on the system (e.g. via `apt install nlohmann-json3-dev
+  libgtest-dev`), otherwise fetched automatically via CMake `FetchContent`.
 
-# Building from Source.
-# Clone the repository
-git clone [https://github.com/apollonian/apollonian_core_ingestor.git](https://github.com/apollonian/apollonian_core_ingestor.git)
+### Building from source
+
+```bash
+git clone https://github.com/Anton-Sergeev-EA/apollonian_core_ingestor.git
 cd apollonian_core_ingestor
-# Configure and build
+
 mkdir build && cd build
-cmake .. -DCMAKE_BUILD_TYPE=Release -DENABLE_NATIVE_OPTIMIZATION=ON
+cmake .. -DCMAKE_BUILD_TYPE=Release
 cmake --build . --parallel
+
 # Run the ingestion engine
 ./apollonian_ingestor ../config.json
-# Run unit tests
-ctest --output-on-failure
 
-# Project Structure.
+# Run the unit test suite
+ctest --output-on-failure
+```
+
+Useful CMake options:
+
+| Option                        | Default | Description                                   |
+|--------------------------------|---------|------------------------------------------------|
+| `BUILD_TESTS`                  | `ON`    | Build the GoogleTest suite                     |
+| `ENABLE_NATIVE_OPTIMIZATION`   | `OFF`   | Build with `-march=native -O3` (not portable — only for benchmarking on the build machine) |
+| `ENABLE_SANITIZERS`            | `OFF`   | Build with ASan + UBSan                        |
+
+## Project Structure
+
+```
 apollonian_core_ingestor/
 ├── include/
 │   └── ingestor/
-│       ├── ring_buffer.hpp      # Lock-free SPSC Ring Buffer with cache alignment
-│       ├── serializer.hpp       # SSE4.2 CRC32 Zero-Allocation Binary Serializer
-│       ├── metrics.hpp          # Cache-aligned Lock-Free Metrics Collector
-│       ├── config.hpp           # Self-validating Configuration Model
-│       └── ingestor.hpp         # Ingestion Orchestrator Class
+│       ├── cache_line.hpp   # Shared cache-line-size constant
+│       ├── ring_buffer.hpp  # Lock-free SPSC ring buffer
+│       ├── serializer.hpp   # CRC32 zero-allocation binary serializer
+│       ├── metrics.hpp      # Lock-free metrics collector
+│       ├── config.hpp       # Configuration model + validation
+│       └── ingestor.hpp     # Ingestion orchestrator
 ├── src/
-│   ├── main.cpp                 # Entry point & Signal Handler
-│   ├── ingestor.cpp             # Engine Pipeline Loop Implementation
-│   └── config.cpp               # JSON Config Parser & Validator
+│   ├── main.cpp             # Entry point & signal handling
+│   ├── ingestor.cpp         # Pipeline loop implementation
+│   └── config.cpp           # JSON config parsing
 ├── tests/
-│   ├── test_ring_buffer.cpp     # Multithreaded SPSC & Move-Semantics Unit Tests
-│   └── test_serializer.cpp      # Zero-Copy & CRC32 Integrity Unit Tests
-├── config.json                  # Production Configuration File
-├── CMakeLists.txt               # CMake Build Script
-└── README.md                    # Project Documentation
+│   ├── test_ring_buffer.cpp
+│   └── test_serializer.cpp
+├── .github/workflows/ci.yml # Build + test + sanitizer + format CI
+├── config.json               # Example configuration
+├── CMakeLists.txt
+└── README.md
+```
 
-# Configuration.
+## Configuration
+
+```json
 {
     "ring_buffer_capacity": 1048576,
     "batch_size": 1000,
@@ -81,11 +121,20 @@ apollonian_core_ingestor/
     "output_endpoint": "s3://apollonian-bucket/telemetry/",
     "enable_metrics": true
 }
+```
 
-- ring_buffer_capacity: Capacity must be a power of two (e.g., 65536, 1048576) for bitmask indexing optimization.
+- `ring_buffer_capacity` must be a power of two (e.g. `65536`, `1048576`) —
+  required for bitmask-based indexing.
+- `batch_size` must be greater than 0 and no larger than
+  `ring_buffer_capacity`.
 
-# License.
-Distributed under the MIT License. See LICENSE for more information.
-Developed Sergeev Anton
-avsergeev1981@gmail.com
-Building next-generation GitOps for PLCs, Machine Learning predictions, and Industrial Cybersecurity.
+Configuration is validated on load; an invalid file is rejected with a
+descriptive error rather than silently falling back to defaults.
+
+## License
+
+Distributed under the MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+Anton Sergeev — avsergeev1981@gmail.com
